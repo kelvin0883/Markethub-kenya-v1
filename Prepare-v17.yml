@@ -1,0 +1,93 @@
+name: Prepare MarketHub v17
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Extract MarketHub v17
+        run: |
+          python3 - <<'PY'
+          import zipfile
+          import os
+          import shutil
+
+          zip_file = "MarketHub-Kenya-v17.zip"
+
+          if not os.path.exists(zip_file):
+              raise SystemExit(f"ZIP file not found: {zip_file}")
+
+          with zipfile.ZipFile(zip_file, "r") as z:
+              names = z.namelist()
+              print(f"ZIP contains {len(names)} files")
+
+              for name in names:
+                  print(name)
+
+              z.extractall("extracted")
+
+          source = "extracted/mh17"
+
+          if os.path.isdir(source):
+              for item in os.listdir(source):
+                  src = os.path.join(source, item)
+                  dst = os.path.join(".", item)
+
+                  if os.path.exists(dst):
+                      if os.path.isdir(dst):
+                          shutil.rmtree(dst)
+                      else:
+                          os.remove(dst)
+
+                  shutil.move(src, dst)
+          else:
+              for item in os.listdir("extracted"):
+                  src = os.path.join("extracted", item)
+                  dst = os.path.join(".", item)
+
+                  if item != ".github":
+                      if os.path.exists(dst):
+                          if os.path.isdir(dst):
+                              shutil.rmtree(dst)
+                          else:
+                              os.remove(dst)
+
+                      shutil.move(src, dst)
+
+          shutil.rmtree("extracted")
+          os.remove(zip_file)
+
+          print("MarketHub v17 extracted successfully.")
+
+      - name: Verify project
+        run: |
+          test -f package.json
+          test -f server.js
+          test -f Dockerfile
+
+          echo "Project verification successful."
+          echo "Files:"
+          ls -la
+
+      - name: Commit extracted project
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Prepare MarketHub Kenya v17 for deployment"
+            git push
+          fi
